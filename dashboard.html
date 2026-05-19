@@ -1,0 +1,1906 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Pairs Trader — Dashboard</title>
+<link href="https://fonts.googleapis.com/css2?family=Space+Mono:ital,wght@0,400;0,700;1,400&family=Syne:wght@400;600;800&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #09090f;
+    --surface: #111118;
+    --surface2: #16161f;
+    --border: #1e1e2e;
+    --accent: #00e5a0;
+    --accent2: #ff4d6d;
+    --accent3: #7c6fff;
+    --text: #e2e2f0;
+    --muted: #6b6b85;
+    --win: #00e5a0;
+    --loss: #ff4d6d;
+    --mono: 'Space Mono', monospace;
+    --sans: 'Syne', sans-serif;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--sans);
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  /* ── NOISE OVERLAY ── */
+  body::before {
+    content: '';
+    position: fixed; inset: 0;
+    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.03'/%3E%3C/svg%3E");
+    pointer-events: none; z-index: 1000; opacity: .4;
+  }
+
+  /* ── HEADER ── */
+  header {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 20px 32px;
+    border-bottom: 1px solid var(--border);
+    background: linear-gradient(90deg, #0d0d15, #111118);
+    position: sticky; top: 0; z-index: 100;
+    backdrop-filter: blur(12px);
+  }
+
+  .logo {
+    display: flex; align-items: center; gap: 12px;
+    font-family: var(--sans); font-weight: 800; font-size: 1.2rem;
+    letter-spacing: -0.02em;
+  }
+
+  .logo-dot {
+    width: 10px; height: 10px; border-radius: 50%;
+    background: var(--accent);
+    box-shadow: 0 0 10px var(--accent);
+    animation: pulse 2s infinite;
+  }
+
+  @keyframes pulse {
+    0%, 100% { opacity: 1; transform: scale(1); }
+    50% { opacity: 0.6; transform: scale(0.8); }
+  }
+
+  .header-meta {
+    display: flex; align-items: center; gap: 20px;
+    font-family: var(--mono); font-size: 0.72rem; color: var(--muted);
+  }
+
+  .status-badge {
+    display: flex; align-items: center; gap: 6px;
+    background: rgba(0,229,160,0.08);
+    border: 1px solid rgba(0,229,160,0.2);
+    padding: 4px 10px; border-radius: 20px;
+    color: var(--accent); font-size: 0.7rem; font-family: var(--mono);
+  }
+
+  .status-badge::before {
+    content: ''; width: 6px; height: 6px; border-radius: 50%;
+    background: var(--accent); animation: pulse 1.5s infinite;
+  }
+
+  /* ── MAIN LAYOUT ── */
+  .container { max-width: 1400px; margin: 0 auto; padding: 32px; }
+
+  /* ── GLOBAL STATS BAR ── */
+  .stats-row {
+    display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px;
+    margin-bottom: 32px;
+  }
+
+  .stat-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 20px 24px;
+    position: relative; overflow: hidden;
+    transition: border-color .2s, transform .2s;
+  }
+
+  .stat-card:hover { border-color: rgba(124,111,255,.4); transform: translateY(-2px); }
+  .stat-card.active { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent), 0 8px 30px rgba(0,229,160,.1); }
+
+  .stat-card::after {
+    content: '';
+    position: absolute; top: 0; left: 0; right: 0; height: 1px;
+    background: linear-gradient(90deg, transparent, var(--accent3), transparent);
+    opacity: 0.5;
+  }
+
+  .stat-label {
+    font-family: var(--mono); font-size: 0.65rem;
+    color: var(--muted); text-transform: uppercase; letter-spacing: .1em;
+    margin-bottom: 8px;
+  }
+
+  .stat-value {
+    font-family: var(--mono); font-size: 1.6rem; font-weight: 700;
+    letter-spacing: -0.03em;
+  }
+
+  .stat-value.positive { color: var(--win); }
+  .stat-value.negative { color: var(--loss); }
+  .stat-value.neutral  { color: var(--text); }
+
+  .stat-sub {
+    font-family: var(--mono); font-size: 0.65rem; color: var(--muted); margin-top: 4px;
+  }
+
+  /* ── PAIRS GRID ── */
+  .section-title {
+    font-family: var(--sans); font-weight: 600; font-size: 0.75rem;
+    text-transform: uppercase; letter-spacing: .15em; color: var(--muted);
+    margin-bottom: 16px;
+  }
+
+  .pairs-grid {
+    display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+    gap: 16px; margin-bottom: 32px;
+  }
+
+  .pair-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 20px 22px;
+    cursor: pointer;
+    transition: all .25s cubic-bezier(.4,0,.2,1);
+    position: relative; overflow: hidden;
+  }
+
+  .pair-card:hover {
+    border-color: var(--accent3);
+    background: var(--surface2);
+    transform: translateY(-3px);
+    box-shadow: 0 8px 30px rgba(0,0,0,.4), 0 0 0 1px rgba(124,111,255,.1);
+  }
+
+  .pair-card.active {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 1px var(--accent), 0 8px 30px rgba(0,229,160,.1);
+  }
+
+  .pair-card::before {
+    content: '';
+    position: absolute; top: -40px; right: -40px;
+    width: 120px; height: 120px;
+    border-radius: 50%;
+    background: radial-gradient(circle, rgba(124,111,255,.06), transparent 70%);
+    pointer-events: none;
+  }
+
+  .pair-header {
+    display: flex; align-items: flex-start; justify-content: space-between;
+    margin-bottom: 16px; gap: 8px;
+  }
+
+  .pair-name {
+    font-family: var(--sans); font-weight: 800; font-size: .85rem;
+    letter-spacing: -0.01em; line-height: 1.3;
+    min-width: 0; word-break: break-word;
+  }
+
+  .pair-name .sym { display: block; }
+  .pair-name .sep { color: var(--muted); font-weight: 400; font-size: .65rem; display: block; line-height: 1; margin: 1px 0; }
+
+  .pair-zscore {
+    font-family: var(--mono); font-size: 0.72rem;
+    padding: 3px 8px; border-radius: 6px;
+    border: 1px solid;
+  }
+
+  .zscore-high { color: var(--loss); border-color: rgba(255,77,109,.3); background: rgba(255,77,109,.06); }
+  .zscore-low  { color: var(--win);  border-color: rgba(0,229,160,.3);  background: rgba(0,229,160,.06); }
+  .zscore-mid  { color: var(--muted); border-color: var(--border); background: transparent; }
+
+  .pair-metrics {
+    display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 12px;
+    margin-bottom: 14px;
+  }
+
+  .metric { }
+
+  .metric-label {
+    font-family: var(--mono); font-size: 0.58rem;
+    color: var(--muted); text-transform: uppercase; letter-spacing: .08em;
+    margin-bottom: 2px;
+  }
+
+  .metric-val {
+    font-family: var(--mono); font-size: 0.9rem; font-weight: 700;
+  }
+
+  .metric-val.pos { color: var(--win); }
+  .metric-val.neg { color: var(--loss); }
+
+  /* mini sparkline */
+  .sparkline-wrap { height: 40px; margin-top: 6px; }
+
+  .sparkline-wrap svg { width: 100%; height: 100%; }
+
+  .pair-footer {
+    display: flex; align-items: center; justify-content: space-between;
+    margin-top: 10px; padding-top: 10px;
+    border-top: 1px solid var(--border);
+    font-family: var(--mono); font-size: 0.62rem; color: var(--muted);
+  }
+
+  .open-badge {
+    display: flex; align-items: center; gap: 5px;
+    background: rgba(124,111,255,.1);
+    border: 1px solid rgba(124,111,255,.2);
+    color: var(--accent3);
+    padding: 2px 8px; border-radius: 10px;
+  }
+
+  .open-badge::before {
+    content: ''; width: 5px; height: 5px; border-radius: 50%;
+    background: var(--accent3); animation: pulse 1.5s infinite;
+  }
+
+  /* ── DETAIL PANEL ── */
+  .detail-panel {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    overflow: hidden;
+    animation: slideDown .3s cubic-bezier(.4,0,.2,1);
+  }
+
+  @keyframes slideDown {
+    from { opacity: 0; transform: translateY(-10px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+
+  .detail-header {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 20px 28px;
+    border-bottom: 1px solid var(--border);
+    background: var(--surface2);
+  }
+
+  .detail-title {
+    font-family: var(--sans); font-weight: 800; font-size: 1.4rem;
+    letter-spacing: -0.03em;
+  }
+
+  .close-btn {
+    background: rgba(255,77,109,.1);
+    border: 1px solid rgba(255,77,109,.2);
+    color: var(--loss); width: 32px; height: 32px;
+    border-radius: 8px; cursor: pointer;
+    font-size: 1rem; display: flex; align-items: center; justify-content: center;
+    transition: all .2s;
+  }
+
+  .close-btn:hover { background: rgba(255,77,109,.2); }
+
+  .detail-body { padding: 24px 28px; }
+
+  /* ── TABS ── */
+  .tabs {
+    display: flex; gap: 4px; margin-bottom: 24px;
+    background: var(--bg); border-radius: 10px; padding: 4px;
+    width: fit-content;
+  }
+
+  .tab {
+    font-family: var(--mono); font-size: 0.7rem; text-transform: uppercase;
+    letter-spacing: .08em; padding: 7px 16px; border-radius: 7px;
+    cursor: pointer; transition: all .2s; color: var(--muted);
+    border: none; background: none;
+  }
+
+  .tab.active {
+    background: var(--surface2); color: var(--text);
+    box-shadow: 0 1px 4px rgba(0,0,0,.4);
+  }
+
+  /* ── PNL CHART ── */
+  .chart-wrap {
+    height: 260px; position: relative;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 12px; overflow: hidden;
+    margin-bottom: 24px;
+  }
+
+  .chart-wrap canvas { width: 100% !important; height: 100% !important; }
+
+  .chart-label {
+    position: absolute; top: 12px; left: 16px;
+    font-family: var(--mono); font-size: 0.6rem;
+    color: var(--muted); text-transform: uppercase; letter-spacing: .1em;
+  }
+
+  /* ── POSITIONS TABLE ── */
+  .positions-grid {
+    display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    gap: 12px; margin-bottom: 24px;
+  }
+
+  .position-card {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 10px; padding: 14px 16px;
+  }
+
+  .position-dir {
+    font-family: var(--mono); font-size: 0.65rem;
+    text-transform: uppercase; letter-spacing: .08em;
+    margin-bottom: 8px;
+    display: flex; align-items: center; gap: 6px;
+  }
+
+  .dir-long  { color: var(--win); }
+  .dir-short { color: var(--loss); }
+
+  .position-entries { font-family: var(--mono); font-size: 0.7rem; color: var(--muted); }
+  .position-entry   { padding: 4px 0; border-bottom: 1px solid rgba(255,255,255,.04); }
+
+  /* ── TRADES TABLE ── */
+  .trades-table { width: 100%; border-collapse: collapse; font-family: var(--mono); font-size: 0.72rem; }
+
+  .trades-table th {
+    text-align: left; padding: 8px 12px;
+    color: var(--muted); font-size: 0.6rem;
+    text-transform: uppercase; letter-spacing: .08em;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .trades-table td {
+    padding: 10px 12px; border-bottom: 1px solid rgba(255,255,255,.03);
+  }
+
+  .trades-table tr:hover td { background: rgba(255,255,255,.02); }
+
+  .pnl-pos { color: var(--win); }
+  .pnl-neg { color: var(--loss); }
+
+  .detail-stats {
+    display: grid; grid-template-columns: repeat(5, 1fr); gap: 12px;
+    margin-bottom: 24px;
+  }
+
+  .d-stat {
+    background: var(--surface2); border: 1px solid var(--border);
+    border-radius: 10px; padding: 12px 14px;
+  }
+
+  .d-stat-label { font-family: var(--mono); font-size: 0.58rem; color: var(--muted); text-transform: uppercase; letter-spacing: .08em; margin-bottom: 4px; }
+  .d-stat-val   { font-family: var(--mono); font-size: 1rem; font-weight: 700; }
+
+  /* ── HIDDEN ── */
+  .hidden { display: none; }
+
+  @media (max-width: 768px) {
+    .stats-row { grid-template-columns: 1fr 1fr; }
+    .detail-stats { grid-template-columns: 1fr 1fr; }
+    .container { padding: 16px; }
+    header { padding: 14px 16px; }
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo">
+    <div class="logo-dot"></div>
+    PAIRS TRADER
+  </div>
+  <div class="header-meta">
+    <span id="clock" style="letter-spacing:.05em">--:--:--</span>
+    <button onclick="showHistoryTab()" id="btn-history" style="
+      font-family:var(--mono);font-size:.65rem;text-transform:uppercase;letter-spacing:.08em;
+      padding:5px 12px;border-radius:20px;cursor:pointer;
+      background:rgba(124,111,255,.08);border:1px solid rgba(124,111,255,.2);
+      color:var(--accent3);transition:all .2s;
+    ">📋 History</button>
+    <div class="status-badge" id="status-badge">CONNECTING...</div>
+  </div>
+</header>
+
+<div class="container">
+  <!-- GLOBAL STATS -->
+  <div class="stats-row" id="global-stats"></div>
+
+  <!-- PAIRS HEADER -->
+  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;">
+    <div class="section-title" style="margin-bottom:0;">Active Pairs</div>
+    <button id="btn-add-pair" onclick="openAddModal()" style="
+      font-family:var(--mono);font-size:.7rem;text-transform:uppercase;letter-spacing:.08em;
+      padding:7px 16px;border-radius:8px;cursor:pointer;
+      background:rgba(0,229,160,.1);border:1px solid rgba(0,229,160,.25);
+      color:var(--accent);transition:all .2s;
+    " onmouseover="this.style.background='rgba(0,229,160,.2)'" onmouseout="this.style.background='rgba(0,229,160,.1)'">
+      + Add Pair
+    </button>
+  </div>
+  <div class="pairs-grid" id="pairs-grid"></div>
+
+  <!-- DETAIL -->
+  <div id="detail-wrap" class="hidden"></div>
+
+  <!-- GLOBAL PNL CHART -->
+  <div id="pnl-chart-wrap" class="hidden"></div>
+
+  <!-- HISTORY TAB -->
+  <div id="history-wrap" class="hidden">
+    <div class="detail-panel">
+      <div class="detail-header">
+        <div class="detail-title">Trade History</div>
+        <button class="close-btn" onclick="closeHistoryTab()">✕</button>
+      </div>
+      <div class="detail-body">
+        <!-- filters -->
+        <div style="display:flex;align-items:center;gap:12px;margin-bottom:20px;flex-wrap:wrap;">
+          <select id="hist-filter-pair" onchange="renderHistory()" style="
+            background:var(--bg);border:1px solid var(--border);border-radius:8px;
+            padding:7px 12px;color:var(--text);font-family:var(--mono);font-size:.72rem;outline:none;
+          ">
+            <option value="">All Pairs</option>
+          </select>
+          <div style="margin-left:auto;font-family:var(--mono);font-size:.65rem;color:var(--muted);" id="hist-stats-line"></div>
+        </div>
+        <div id="history-table-wrap"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ADD PAIR MODAL -->
+<div id="add-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.7);z-index:500;backdrop-filter:blur(6px);align-items:center;justify-content:center;">
+  <div style="background:var(--surface);border:1px solid var(--border);border-radius:16px;padding:32px;width:420px;max-width:90vw;animation:slideDown .25s ease;">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:24px;">
+      <div style="font-family:var(--sans);font-weight:800;font-size:1.2rem;letter-spacing:-.02em;">Add New Pair</div>
+      <button onclick="closeAddModal()" style="background:rgba(255,77,109,.1);border:1px solid rgba(255,77,109,.2);color:var(--loss);width:30px;height:30px;border-radius:7px;cursor:pointer;font-size:1rem;display:flex;align-items:center;justify-content:center;">&#x2715;</button>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:20px;">
+      <div>
+        <div style="font-family:var(--mono);font-size:.6rem;color:var(--muted);text-transform:uppercase;letter-spacing:.08em;margin-bottom:6px;">Symbol A</div>
+        <input id="input-sym-a" placeholder="BTCUSDT" style="
+          width:100%;background:var(--bg);border:1px solid var(--border);border-radius:8px;
+          padding:10px 12px;color:var(--text);font-family:var(--mono);font-size:.85rem;
+          outline:none;transition:border-color .2s;
+        " onfocus="this.style.borderColor='var(--accent3)'" onblur="this.style.borderColor='var(--border)'"
+           oninput="this.value=this.value.toUpperCase()">
+      </div>
+      <div>
+        <div style="font-family:var(--mono);font-size:.6rem;color:var(--muted);text-transform:uppercase;letter-spacing:.08em;margin-bottom:6px;">Symbol B</div>
+        <input id="input-sym-b" placeholder="ETHUSDT" style="
+          width:100%;background:var(--bg);border:1px solid var(--border);border-radius:8px;
+          padding:10px 12px;color:var(--text);font-family:var(--mono);font-size:.85rem;
+          outline:none;transition:border-color .2s;
+        " onfocus="this.style.borderColor='var(--accent3)'" onblur="this.style.borderColor='var(--border)'"
+           oninput="this.value=this.value.toUpperCase()">
+      </div>
+    </div>
+    <div id="add-error" style="display:none;font-family:var(--mono);font-size:.7rem;color:var(--loss);margin-bottom:12px;padding:8px 12px;background:rgba(255,77,109,.07);border-radius:6px;border:1px solid rgba(255,77,109,.2);"></div>
+    <div style="display:flex;gap:10px;">
+      <button id="btn-add-submit" onclick="submitAddPair()" style="
+        flex:1;font-family:var(--mono);font-size:.75rem;text-transform:uppercase;letter-spacing:.08em;
+        padding:10px;border-radius:8px;cursor:pointer;
+        background:rgba(0,229,160,.15);border:1px solid rgba(0,229,160,.3);
+        color:var(--accent);transition:all .2s;
+      ">Add Pair</button>
+      <button onclick="closeAddModal()" style="
+        font-family:var(--mono);font-size:.75rem;text-transform:uppercase;letter-spacing:.08em;
+        padding:10px 20px;border-radius:8px;cursor:pointer;
+        background:transparent;border:1px solid var(--border);color:var(--muted);
+      ">Cancel</button>
+    </div>
+  </div>
+</div>
+
+<!-- EDIT TRADE SIZE MODAL -->
+<div id="size-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.7);z-index:500;backdrop-filter:blur(6px);align-items:center;justify-content:center;">
+  <div style="background:var(--surface);border:1px solid var(--border);border-radius:16px;padding:28px;width:340px;max-width:90vw;animation:slideDown .25s ease;">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;">
+      <div style="font-family:var(--sans);font-weight:800;font-size:1.1rem;letter-spacing:-.02em;">Trade Size</div>
+      <button onclick="closeSizeModal()" style="background:rgba(255,77,109,.1);border:1px solid rgba(255,77,109,.2);color:var(--loss);width:28px;height:28px;border-radius:7px;cursor:pointer;font-size:.9rem;display:flex;align-items:center;justify-content:center;">&#x2715;</button>
+    </div>
+    <div id="size-modal-key" style="font-family:var(--mono);font-size:.65rem;color:var(--muted);margin-bottom:20px;"></div>
+    <div style="font-family:var(--mono);font-size:.6rem;color:var(--muted);text-transform:uppercase;letter-spacing:.08em;margin-bottom:6px;">$ per level</div>
+    <div style="display:flex;gap:8px;margin-bottom:12px;">
+      <input id="input-trade-size" type="number" min="1" step="1" style="
+        flex:1;background:var(--bg);border:1px solid var(--border);border-radius:8px;
+        padding:10px 12px;color:var(--text);font-family:var(--mono);font-size:1.1rem;font-weight:700;
+        outline:none;transition:border-color .2s;
+      " onfocus="this.style.borderColor='var(--accent3)'" onblur="this.style.borderColor='var(--border)'">
+      <span style="font-family:var(--mono);font-size:1rem;color:var(--muted);display:flex;align-items:center;">USDT</span>
+    </div>
+    <div style="display:flex;gap:6px;margin-bottom:16px;" id="size-presets"></div>
+    <div id="size-error" style="display:none;font-family:var(--mono);font-size:.7rem;color:var(--loss);margin-bottom:12px;padding:8px 12px;background:rgba(255,77,109,.07);border-radius:6px;border:1px solid rgba(255,77,109,.2);"></div>
+    <div style="font-family:var(--mono);font-size:.6rem;color:var(--muted);margin-bottom:16px;padding:8px 10px;background:rgba(255,255,255,.03);border-radius:6px;border-left:2px solid var(--accent3);">
+      ⚠ Новый размер применяется только к следующим входам.<br>Открытые позиции не затрагиваются.
+    </div>
+    <div style="display:flex;gap:10px;">
+      <button onclick="submitTradeSize()" style="
+        flex:1;font-family:var(--mono);font-size:.75rem;text-transform:uppercase;letter-spacing:.08em;
+        padding:10px;border-radius:8px;cursor:pointer;
+        background:rgba(124,111,255,.15);border:1px solid rgba(124,111,255,.3);
+        color:var(--accent3);transition:all .2s;
+      ">Apply</button>
+      <button onclick="closeSizeModal()" style="
+        font-family:var(--mono);font-size:.75rem;text-transform:uppercase;letter-spacing:.08em;
+        padding:10px 20px;border-radius:8px;cursor:pointer;
+        background:transparent;border:1px solid var(--border);color:var(--muted);
+      ">Cancel</button>
+    </div>
+  </div>
+</div>
+
+
+<!-- EDIT WINDOW MODAL -->
+<div id="win-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.7);z-index:500;backdrop-filter:blur(6px);align-items:center;justify-content:center;">
+  <div style="background:var(--surface);border:1px solid var(--border);border-radius:16px;padding:28px;width:340px;max-width:90vw;animation:slideDown .25s ease;">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;">
+      <div style="font-family:var(--sans);font-weight:800;font-size:1.1rem;letter-spacing:-.02em;">Window</div>
+      <button onclick="closeWinModal()" style="background:rgba(255,77,109,.1);border:1px solid rgba(255,77,109,.2);color:var(--loss);width:28px;height:28px;border-radius:7px;cursor:pointer;font-size:.9rem;display:flex;align-items:center;justify-content:center;">&#x2715;</button>
+    </div>
+    <div id="win-modal-key" style="font-family:var(--mono);font-size:.65rem;color:var(--muted);margin-bottom:20px;"></div>
+    <div style="font-family:var(--mono);font-size:.6rem;color:var(--muted);text-transform:uppercase;letter-spacing:.08em;margin-bottom:6px;">Количество баров</div>
+    <div style="display:flex;gap:8px;margin-bottom:12px;">
+      <input id="input-window" type="number" min="10" step="10" style="
+        flex:1;background:var(--bg);border:1px solid var(--border);border-radius:8px;
+        padding:10px 12px;color:var(--text);font-family:var(--mono);font-size:1.1rem;font-weight:700;
+        outline:none;transition:border-color .2s;
+      " onfocus="this.style.borderColor='var(--accent)'" onblur="this.style.borderColor='var(--border)'">
+      <span style="font-family:var(--mono);font-size:.85rem;color:var(--muted);display:flex;align-items:center;">bars</span>
+    </div>
+    <div id="win-presets" style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:16px;"></div>
+    <div id="win-error" style="display:none;font-family:var(--mono);font-size:.7rem;color:var(--loss);margin-bottom:12px;padding:8px 12px;background:rgba(255,77,109,.07);border-radius:6px;border:1px solid rgba(255,77,109,.2);"></div>
+    <div style="font-family:var(--mono);font-size:.6rem;color:var(--muted);margin-bottom:16px;padding:8px 10px;background:rgba(255,255,255,.03);border-radius:6px;border-left:2px solid var(--accent);">
+      ⚠ Применяется с следующего цикла пересчёта. Открытые позиции не затрагиваются.
+    </div>
+    <div style="display:flex;gap:10px;">
+      <button onclick="submitWindow()" style="
+        flex:1;font-family:var(--mono);font-size:.75rem;text-transform:uppercase;letter-spacing:.08em;
+        padding:10px;border-radius:8px;cursor:pointer;
+        background:rgba(0,229,160,.15);border:1px solid rgba(0,229,160,.3);
+        color:var(--accent);transition:all .2s;
+      ">Apply</button>
+      <button onclick="closeWinModal()" style="
+        font-family:var(--mono);font-size:.75rem;text-transform:uppercase;letter-spacing:.08em;
+        padding:10px 20px;border-radius:8px;cursor:pointer;
+        background:transparent;border:1px solid var(--border);color:var(--muted);
+      ">Cancel</button>
+    </div>
+  </div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js"></script>
+<script>
+/* ═══════════════════════════════════════════
+   MOCK DATA — replace with real API later
+═══════════════════════════════════════════ */
+const MOCK = {
+  status: { running: true, pairs: 0, timeframe: "5m", window: 300, grid_levels: [2,3,4], trade_size: 30, leverage: 3 },
+  pairs: [],
+  allHistory: []   // полная история всех сделок
+};
+
+function genEquity(trades, finalPnl) {
+  const pts = [];
+  let cum = 0;
+  const now = Date.now();
+  for (let i = 0; i < trades; i++) {
+    const frac = i / trades;
+    // some noise + trend toward finalPnl
+    const step = (finalPnl / trades) + (Math.random() - 0.48) * Math.abs(finalPnl) * 0.12;
+    cum += step;
+    pts.push({ t: new Date(now - (trades - i) * 3600000 * 3).toISOString(), cum: +cum.toFixed(2) });
+  }
+  // correct last point
+  pts[pts.length - 1].cum = finalPnl;
+  return pts;
+}
+
+function genTrades(pair) {
+  const trades = [];
+  const now = Date.now();
+  for (let i = 0; i < pair.total_trades; i++) {
+    const won = Math.random() < (pair.win_rate / 100);
+    const pnl = won ? +(Math.random() * 40 + 5).toFixed(2) : -(Math.random() * 25 + 2).toFixed(2);
+    const comm = -(Math.random() * 0.8 + 0.2).toFixed(2);
+    const dir = Math.random() > .5 ? 1 : -1;
+    trades.push({
+      direction: dir,
+      symbol_a: pair.symbol_a, symbol_b: pair.symbol_b,
+      exit_time: new Date(now - (pair.total_trades - i) * 3600000 * 4).toISOString(),
+      exit_z: +((Math.random() - 0.5) * 0.4).toFixed(4),
+      pnl, commission: +comm,
+      levels: [2, 3].slice(0, Math.floor(Math.random()*2)+1),
+      closed: true
+    });
+  }
+  return trades;
+}
+
+/* ═══════════════════════════════════════════
+   RENDER GLOBAL STATS
+═══════════════════════════════════════════ */
+function renderGlobal() {
+  const pairs = MOCK.pairs;
+  const totalPnl   = pairs.reduce((a, p) => a + p.total_pnl, 0);
+  const totalTrades = pairs.reduce((a, p) => a + p.total_trades, 0);
+  const totalComm  = pairs.reduce((a, p) => a + p.total_commission, 0);
+  const openPos    = pairs.reduce((a, p) => a + p.open_trades, 0);
+  // Winrate считаем агрегированно по всем сделкам, не как среднее по парам
+  const allTrades  = MOCK.allHistory || [];
+  const totalWins  = allTrades.filter(t => t.pnl > 0).length;
+  const globalWR   = allTrades.length > 0 ? (totalWins / allTrades.length * 100).toFixed(1) : '—';
+
+  document.getElementById('global-stats').innerHTML = `
+    <div class="stat-card">
+      <div class="stat-label">Net PnL</div>
+      <div class="stat-value ${totalPnl >= 0 ? 'positive' : 'negative'}">${totalPnl >= 0 ? '+' : ''}$${totalPnl.toFixed(2)}</div>
+      <div class="stat-sub">All pairs combined</div>
+    </div>
+    <div class="stat-card" id="wr-card" onclick="showGlobalPnlChart()" style="cursor:pointer;">
+      <div class="stat-label">Win Rate</div>
+      <div class="stat-value neutral">${globalWR}%</div>
+      <div class="stat-sub">${totalTrades} closed trades</div>
+    </div>
+    <div class="stat-card" id="open-pos-card" onclick="showAllPositions()" style="cursor:pointer;">
+      <div class="stat-label">Open Positions</div>
+      <div class="stat-value neutral">${openPos}</div>
+      <div class="stat-sub">Across ${pairs.length} pairs</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">Commission Paid</div>
+      <div class="stat-value negative">$${Math.abs(totalComm).toFixed(2)}</div>
+      <div class="stat-sub">Total fees</div>
+    </div>
+  `;
+}
+
+/* ═══════════════════════════════════════════
+   RENDER SPARKLINE
+═══════════════════════════════════════════ */
+function renderSparkline(equity, positive) {
+  const vals = equity.map(p => p.cum);
+  const min = Math.min(...vals);
+  const max = Math.max(...vals);
+  const range = max - min || 1;
+  const w = 100, h = 40;
+  const points = vals.map((v, i) => {
+    const x = (i / (vals.length - 1)) * w;
+    const y = h - ((v - min) / range) * (h - 4) - 2;
+    return `${x},${y}`;
+  }).join(' ');
+  const areaPoints = `0,${h} ` + points + ` ${w},${h}`;
+  const color = positive ? '#00e5a0' : '#ff4d6d';
+  const colorFade = positive ? 'rgba(0,229,160,0.12)' : 'rgba(255,77,109,0.12)';
+  return `<svg viewBox="0 0 ${w} ${h}" preserveAspectRatio="none">
+    <defs>
+      <linearGradient id="sg${Date.now()}" x1="0" x2="0" y1="0" y2="1">
+        <stop offset="0%" stop-color="${color}" stop-opacity=".2"/>
+        <stop offset="100%" stop-color="${color}" stop-opacity="0"/>
+      </linearGradient>
+    </defs>
+    <polygon points="${areaPoints}" fill="${colorFade}"/>
+    <polyline points="${points}" fill="none" stroke="${color}" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+  </svg>`;
+}
+
+/* ═══════════════════════════════════════════
+   RENDER PAIRS GRID
+═══════════════════════════════════════════ */
+function renderPairs() {
+  const grid = document.getElementById('pairs-grid');
+  grid.innerHTML = MOCK.pairs.map(p => {
+    const zRaw = p.zscore?.z ?? p.zscore?.value ?? null;
+    const zClass = zRaw !== null && Math.abs(zRaw) >= 2.5 ? (zRaw > 0 ? 'zscore-high' : 'zscore-low') : 'zscore-mid';
+    const pnlPos = p.total_pnl >= 0;
+    const isPaused = !!p.paused;
+    const pausedBanner = isPaused ? `
+      <div style="display:flex;align-items:center;gap:6px;background:rgba(124,111,255,.08);border:1px solid rgba(124,111,255,.2);border-radius:6px;padding:4px 10px;font-family:var(--mono);font-size:.6rem;color:var(--accent3);margin-bottom:10px;">
+        <span style="width:5px;height:5px;border-radius:50%;background:var(--accent3);display:inline-block;"></span> PAUSED
+      </div>` : '';
+    return `
+      <div class="pair-card${isPaused?' paused-card':''}" id="card-${p.key}"
+           style="${isPaused?'opacity:.7;border-color:rgba(124,111,255,.2);':''}"
+           onclick="showDetail('${p.key}')">
+        ${pausedBanner}
+        <div class="pair-header">
+          <div class="pair-name">
+              <span class="sym">${p.symbol_a}</span>
+              <span class="sep">/</span>
+              <span class="sym">${p.symbol_b}</span>
+            </div>
+          <div style="display:flex;align-items:center;gap:6px;" onclick="event.stopPropagation()">
+            ${zRaw !== null ? `<div class="pair-zscore ${zClass}">${zRaw > 0 ? '+' : ''}${zRaw.toFixed(2)}</div>` : ''}
+            <button title="${isPaused?'Resume':'Pause'} trading" onclick="togglePause('${p.key}', ${isPaused})" style="
+              background:${isPaused?'rgba(0,229,160,.1)':'rgba(124,111,255,.1)'};
+              border:1px solid ${isPaused?'rgba(0,229,160,.25)':'rgba(124,111,255,.25)'};
+              color:${isPaused?'var(--accent)':'var(--accent3)'};
+              width:28px;height:28px;border-radius:6px;cursor:pointer;font-size:.85rem;
+              display:flex;align-items:center;justify-content:center;transition:all .2s;
+            ">${isPaused?'▶':'⏸'}</button>
+            <button title="Remove pair" onclick="confirmDelete('${p.key}', ${p.open_trades})" style="
+              background:rgba(255,77,109,.08);border:1px solid rgba(255,77,109,.2);
+              color:var(--loss);width:28px;height:28px;border-radius:6px;cursor:pointer;font-size:.75rem;
+              display:flex;align-items:center;justify-content:center;transition:all .2s;
+            ">✕</button>
+          </div>
+        </div>
+        <div class="pair-metrics">
+          <div class="metric">
+            <div class="metric-label">Net PnL</div>
+            <div class="metric-val ${pnlPos ? 'pos' : 'neg'}">${pnlPos?'+':''}$${p.total_pnl.toFixed(2)}</div>
+          </div>
+          <div class="metric">
+            <div class="metric-label">Win Rate</div>
+            <div class="metric-val">${p.win_rate}%</div>
+          </div>
+          <div class="metric">
+            <div class="metric-label">Trades</div>
+            <div class="metric-val">${p.total_trades}</div>
+          </div>
+        </div>
+        <div class="sparkline-wrap">${renderSparkline(p.equity || p.equity || [], pnlPos)}</div>
+        <div class="pair-footer" style="flex-direction:column;gap:8px;align-items:stretch;">
+          <div style="display:flex;align-items:center;justify-content:space-between;">
+            <div style="display:flex;align-items:center;gap:6px;" onclick="event.stopPropagation()">
+              <span style="font-family:var(--mono);font-size:.6rem;color:var(--muted);">SIZE/LVL</span>
+              <span id="size-display-${p.key}" style="font-family:var(--mono);font-size:.75rem;font-weight:700;color:var(--accent3);">$${(p.trade_size ?? 50).toFixed(0)}</span>
+              <button onclick="openSizeEdit('${p.key}', ${p.trade_size ?? 50})" title="${isPaused ? 'Edit trade size' : 'Поставьте пару на паузу'}" style="
+                background:${isPaused ? 'rgba(124,111,255,.08)' : 'rgba(255,255,255,.03)'};
+                border:1px solid ${isPaused ? 'rgba(124,111,255,.2)' : 'rgba(255,255,255,.08)'};
+                color:${isPaused ? 'var(--accent3)' : 'var(--muted)'};
+                width:20px;height:20px;border-radius:4px;cursor:${isPaused ? 'pointer' : 'not-allowed'};
+                font-size:.6rem;display:flex;align-items:center;justify-content:center;
+                opacity:${isPaused ? '1' : '0.35'};
+              ">✎</button>
+            </div>
+            ${p.open_trades > 0 ? `<div class="open-badge">${p.open_trades} open</div>` : '<span style="color:var(--muted);font-size:.62rem;">No open positions</span>'}
+          </div>
+          <div style="display:flex;align-items:center;gap:6px;" onclick="event.stopPropagation()">
+            <span style="font-family:var(--mono);font-size:.6rem;color:var(--muted);">WINDOW</span>
+            <span id="win-display-${p.key}" style="font-family:var(--mono);font-size:.75rem;font-weight:700;color:var(--accent);">${p.window ?? 300}</span>
+            <button onclick="openWinEdit('${p.key}', ${p.window ?? 300})" title="${isPaused ? 'Edit window' : 'Поставьте пару на паузу'}" style="
+              background:${isPaused ? 'rgba(0,229,160,.08)' : 'rgba(255,255,255,.03)'};
+              border:1px solid ${isPaused ? 'rgba(0,229,160,.2)' : 'rgba(255,255,255,.08)'};
+              color:${isPaused ? 'var(--accent)' : 'var(--muted)'};
+              width:20px;height:20px;border-radius:4px;cursor:${isPaused ? 'pointer' : 'not-allowed'};
+              font-size:.6rem;display:flex;align-items:center;justify-content:center;
+              opacity:${isPaused ? '1' : '0.35'};
+            ">✎</button>
+          </div>
+        </div>
+      </div>
+    `;
+  }).join('');
+}
+
+/* ═══════════════════════════════════════════
+   DETAIL PANEL
+═══════════════════════════════════════════ */
+let currentChart = null;
+let currentTab = 'chart';
+
+function showDetail(key) {
+  closeGlobalPnlChart();
+  const pair = MOCK.pairs.find(p => p.key === key);
+  if (!pair) return;
+
+  // Toggle active card
+  document.querySelectorAll('.pair-card').forEach(c => c.classList.remove('active'));
+  document.getElementById('card-' + key)?.classList.add('active');
+
+  const wrap = document.getElementById('detail-wrap');
+  wrap.classList.remove('hidden');
+
+  wrap.innerHTML = `
+    <div class="detail-panel">
+      <div class="detail-header">
+        <div class="detail-title">${pair.symbol_a} / ${pair.symbol_b}</div>
+        <button class="close-btn" onclick="closeDetail()">✕</button>
+      </div>
+      <div class="detail-body">
+        <!-- Stats row -->
+        <div class="detail-stats" id="detail-stats-${key}">
+          <div class="d-stat">
+            <div class="d-stat-label">Net PnL</div>
+            <div class="d-stat-val ${pair.total_pnl>=0?'pnl-pos':'pnl-neg'}">${pair.total_pnl>=0?'+':''}$${pair.total_pnl.toFixed(2)}</div>
+          </div>
+          <div class="d-stat">
+            <div class="d-stat-label">Win Rate</div>
+            <div class="d-stat-val">${pair.win_rate}%</div>
+          </div>
+          <div class="d-stat">
+            <div class="d-stat-label">Trades</div>
+            <div class="d-stat-val">${pair.total_trades}</div>
+          </div>
+          <div class="d-stat">
+            <div class="d-stat-label">Commission</div>
+            <div class="d-stat-val pnl-neg">-$${Math.abs(pair.total_commission).toFixed(2)}</div>
+          </div>
+
+        </div>
+
+        <!-- Tabs -->
+        <div class="tabs">
+          <button class="tab active" onclick="switchTab('chart', '${key}', this)">PnL Chart</button>
+          <button class="tab" onclick="switchTab('positions', '${key}', this)">Open Positions</button>
+          <button class="tab" onclick="switchTab('trades', '${key}', this)">Trade History</button>
+        </div>
+
+        <div id="tab-chart-${key}">
+          <div class="chart-wrap">
+            <div class="chart-label">Cumulative PnL — $</div>
+            <canvas id="chart-${key}"></canvas>
+          </div>
+        </div>
+        <div id="tab-positions-${key}" class="hidden">${renderPositions(pair)}</div>
+        <div id="tab-trades-${key}" class="hidden">${renderTrades(pair)}</div>
+      </div>
+    </div>
+  `;
+
+  // Scroll into view
+  wrap.scrollIntoView({ behavior: 'smooth', block: 'start' });
+
+  // Draw chart
+  drawChart(pair);
+}
+
+function switchTab(tab, key, btn) {
+  currentTab = tab;
+  ['chart','positions','trades'].forEach(t => {
+    const el = document.getElementById(`tab-${t}-${key}`);
+    if (el) el.classList.toggle('hidden', t !== tab);
+  });
+  document.querySelectorAll('.tab').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  if (tab === 'chart') {
+    // Small delay so canvas is visible before drawing
+    setTimeout(() => drawChart(MOCK.pairs.find(p => p.key === key)), 10);
+  }
+}
+
+/* ═══════════════════════════════════════════
+   MOCK LIVE PRICES — simulates real-time feed
+═══════════════════════════════════════════ */
+const LIVE_PRICES = {
+  "0GUSDT":   1.261,
+  "INXUSDT":  0.00862,
+  "BTCUSDT":  67420.0,
+  "ETHUSDT":  3512.0,
+  "SOLUSDT":  139.50,
+  "AVAXUSDT": 29.10,
+};
+
+/* ═══════════════════════════════════════════
+   MAX DRAWDOWN calc
+═══════════════════════════════════════════ */
+function calcMaxDrawdown(trades) {
+  if (!trades || trades.length === 0) return 0;
+  let peak = -Infinity, cum = 0, maxDD = 0;
+  trades.forEach(t => {
+    cum += t.pnl;
+    if (cum > peak) peak = cum;
+    const dd = peak - cum;
+    if (dd > maxDD) maxDD = dd;
+  });
+  return maxDD;
+}
+
+
+function renderPositions(pair) {
+  if (pair.open_positions.length === 0) {
+    return `
+      <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;padding:60px 20px;gap:12px;">
+        <div style="font-size:2rem;opacity:.2">◎</div>
+        <div style="font-family:var(--mono);font-size:.75rem;color:var(--muted);">No open positions</div>
+      </div>`;
+  }
+  return `<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:14px;">` +
+    pair.open_positions.map((pos, posIdx) => {
+      const isLong = pos.direction === 1;
+      const color  = isLong ? 'var(--win)' : 'var(--loss)';
+      const colorRgb = isLong ? '0,229,160' : '255,77,109';
+      const dirLabel = isLong
+        ? `▲ LONG ${pair.symbol_a} / ▼ SHORT ${pair.symbol_b}`
+        : `▼ SHORT ${pair.symbol_a} / ▲ LONG ${pair.symbol_b}`;
+
+
+
+      const entriesHTML = pos.entries.map((e, i) => `
+        <div style="
+          display:grid;grid-template-columns:auto 1fr 1fr;gap:6px 12px;
+          padding:8px 0;border-bottom:1px solid rgba(255,255,255,.04);
+          align-items:center;
+        ">
+          <div style="
+            font-family:var(--mono);font-size:.6rem;
+            background:rgba(${colorRgb},.12);border:1px solid rgba(${colorRgb},.2);
+            color:${color};border-radius:4px;padding:2px 6px;white-space:nowrap;
+          ">Lv ${e.level}</div>
+          <div>
+            <div style="font-family:var(--mono);font-size:.58rem;color:var(--muted);">${pair.symbol_a}</div>
+            <div style="font-family:var(--mono);font-size:.78rem;">${e.entry_price_a}</div>
+          </div>
+          <div>
+            <div style="font-family:var(--mono);font-size:.58rem;color:var(--muted);">size</div>
+            <div style="font-family:var(--mono);font-size:.78rem;">$${e.size_usd}</div>
+          </div>
+          <div></div>
+          <div>
+            <div style="font-family:var(--mono);font-size:.58rem;color:var(--muted);">${pair.symbol_b}</div>
+            <div style="font-family:var(--mono);font-size:.78rem;">${e.entry_price_b}</div>
+          </div>
+        </div>
+      `).join('');
+
+      return `
+        <div style="
+          background:var(--surface2);
+          border:1px solid var(--border);
+          border-radius:14px;padding:18px 20px;
+          position:relative;overflow:hidden;
+        ">
+          <!-- glow top bar -->
+          <div style="
+            position:absolute;top:0;left:0;right:0;height:2px;
+            background:linear-gradient(90deg,transparent,rgba(${colorRgb},.4),transparent);
+          "></div>
+
+          <!-- header -->
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;">
+            <div style="font-family:var(--sans);font-weight:800;font-size:.95rem;">
+              <span style="color:${isLong ? 'var(--win)' : 'var(--loss)'};">${isLong ? '▲' : '▼'} ${pair.symbol_a}</span>
+              <span style="color:var(--muted);font-weight:400;"> / </span>
+              <span style="color:${isLong ? 'var(--loss)' : 'var(--win)'};">${isLong ? '▼' : '▲'} ${pair.symbol_b}</span>
+            </div>
+            <div style="
+              font-family:var(--mono);font-size:.6rem;
+              background:rgba(${colorRgb},.08);border:1px solid rgba(${colorRgb},.2);
+              color:${color};border-radius:20px;padding:3px 10px;
+            ">${pos.n_entries} entr${pos.n_entries>1?'ies':'y'}</div>
+          </div>
+
+          <!-- key metrics -->
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:14px;">
+            <div style="background:rgba(255,255,255,.03);border-radius:8px;padding:8px 10px;">
+              <div style="font-family:var(--mono);font-size:.55rem;color:var(--muted);text-transform:uppercase;letter-spacing:.08em;margin-bottom:3px;">Total Size</div>
+              <div style="font-family:var(--mono);font-size:.9rem;font-weight:700;">$${pos.total_size}
+                <span style="font-size:.65rem;color:var(--muted);font-weight:400;">lv ${[...new Set(pos.levels)].join('/')}</span>
+              </div>
+            </div>
+            <div style="background:rgba(255,255,255,.03);border-radius:8px;padding:8px 10px;border:1px solid rgba(${colorRgb},.15);">
+              <div style="font-family:var(--mono);font-size:.55rem;color:var(--muted);text-transform:uppercase;letter-spacing:.08em;margin-bottom:3px;">Z-score</div>
+              <div style="font-family:var(--mono);font-size:.9rem;font-weight:700;color:${color};">
+                ${pair.zscore?.z != null ? (pair.zscore.z > 0 ? '+' : '') + pair.zscore.z.toFixed(4) : '—'}
+              </div>
+            </div>
+          </div>
+
+          <!-- entries list -->
+          <div style="font-family:var(--mono);font-size:.6rem;color:var(--muted);text-transform:uppercase;letter-spacing:.08em;margin-bottom:6px;">Entry Details</div>
+          ${entriesHTML}
+
+          <!-- opened at -->
+          <div style="font-family:var(--mono);font-size:.6rem;color:var(--muted);margin-top:10px;">
+            Opened: ${new Date(pos.first_entry_time).toLocaleString('ru-RU')}
+          </div>
+        </div>
+      `;
+    }).join('') + `</div>`;
+}
+
+function renderTrades(pair) {
+  // Нормализуем в хронологическом порядке (старые → новые)
+  const trades = (pair.trades || []).map(t => ({
+    ...t,
+    exit_time: t.exit_time || t.entries?.[0]?.entry_time,
+    direction: t.direction,
+    pnl: t.pnl || 0,
+    commission: t.commission || 0,
+  }));
+  const maxDD = calcMaxDrawdown(trades);
+
+  // Per-trade running drawdown (считаем в хронологическом порядке)
+  let peak = -Infinity, cum = 0;
+  const tradeDrawdowns = trades.map(t => {
+    cum += t.pnl;
+    if (cum > peak) peak = cum;
+    return peak > cum ? -(peak - cum) : 0;
+  });
+
+  // Отображаем в обратном порядке (новые сверху), индекс i — в хронологическом массиве
+  const rows = trades.slice().reverse().map((t, ri) => {
+    const i = trades.length - 1 - ri;
+    const dd = tradeDrawdowns[i];
+    return `<tr>
+      <td>${new Date(t.exit_time).toLocaleDateString('ru-RU')}</td>
+      <td>${new Date(t.exit_time).toLocaleTimeString('ru-RU')}</td>
+      <td class="${t.pnl>=0?'pnl-pos':'pnl-neg'}">${t.pnl>=0?'+':''}$${t.pnl.toFixed(2)}</td>
+      <td style="color:var(--muted)">-$${Math.abs(t.commission).toFixed(2)}</td>
+      <td style="color:${dd < 0 ? 'var(--loss)' : 'var(--muted)'};">${dd < 0 ? '-$'+Math.abs(dd).toFixed(2) : '—'}</td>
+    </tr>`;
+  }).join('');
+  return `
+    <div style="
+      background:rgba(255,77,109,.05);border:1px solid rgba(255,77,109,.2);
+      border-radius:10px;padding:12px 16px;margin-bottom:16px;
+      display:flex;align-items:center;justify-content:space-between;
+    ">
+      <div style="font-family:var(--mono);font-size:.6rem;color:var(--muted);text-transform:uppercase;letter-spacing:.08em;">Max Drawdown</div>
+      <div style="font-family:var(--mono);font-size:1rem;font-weight:700;color:var(--loss);">-$${maxDD.toFixed(2)}</div>
+    </div>
+    <div style="overflow-x:auto; border-radius:10px; border:1px solid var(--border);">
+      <table class="trades-table">
+        <thead>
+          <tr>
+            <th>Date</th><th>Time</th><th>PnL</th><th>Comm</th><th>Drawdown</th>
+          </tr>
+        </thead>
+        <tbody>${rows}</tbody>
+      </table>
+    </div>
+  `;
+}
+
+function drawChart(pair) {
+  const canvas = document.getElementById('chart-' + pair.key);
+  if (!canvas) return;
+  if (currentChart) { currentChart.destroy(); currentChart = null; }
+
+  // API отдаёт [{ts: "...", pnl: cumulative}, ...] или [{t: "...", cum: ...}] (mock)
+  const equityData = pair.equity || [];
+  const labels = equityData.map(p => {
+    const d = new Date(p.ts || p.t);
+    if (isNaN(d)) return '?';
+    return d.toLocaleDateString('ru-RU', {month:'2-digit',day:'2-digit'});
+  });
+  const data   = equityData.map(p => p.pnl != null ? p.pnl : (p.cum || 0));
+  const color  = pair.total_pnl >= 0 ? '#00e5a0' : '#ff4d6d';
+
+  currentChart = new Chart(canvas, {
+    type: 'line',
+    data: {
+      labels,
+      datasets: [{
+        data,
+        borderColor: color,
+        backgroundColor: (ctx) => {
+          const g = ctx.chart.ctx.createLinearGradient(0, 0, 0, 260);
+          g.addColorStop(0, color + '30');
+          g.addColorStop(1, color + '00');
+          return g;
+        },
+        borderWidth: 2,
+        pointRadius: 0,
+        pointHoverRadius: 4,
+        fill: true,
+        tension: 0.35
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      animation: { duration: 600 },
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          backgroundColor: '#16161f',
+          borderColor: color + '40',
+          borderWidth: 1,
+          titleColor: '#6b6b85',
+          bodyColor: color,
+          bodyFont: { family: 'Space Mono', size: 12 },
+          callbacks: {
+            label: ctx => `  $${ctx.parsed.y.toFixed(2)}`
+          }
+        }
+      },
+      scales: {
+        x: {
+          ticks: { color: '#6b6b85', font: { family: 'Space Mono', size: 9 }, maxTicksLimit: 8 },
+          grid: { color: 'rgba(255,255,255,0.03)' }
+        },
+        y: {
+          ticks: { color: '#6b6b85', font: { family: 'Space Mono', size: 9 }, callback: v => '$' + v.toFixed(0) },
+          grid: { color: 'rgba(255,255,255,0.04)' },
+          border: { dash: [3,3] }
+        }
+      }
+    }
+  });
+}
+
+function showAllPositions() {
+  closeGlobalPnlChart();
+  // Toggle active on stat card
+  const card = document.getElementById('open-pos-card');
+  const isActive = card.classList.contains('active');
+
+  document.querySelectorAll('.pair-card').forEach(c => c.classList.remove('active'));
+
+  if (isActive) {
+    card.classList.remove('active');
+    closeDetail();
+    return;
+  }
+
+  card.classList.add('active');
+
+  // Collect all open positions across all pairs
+  const allPositions = [];
+  MOCK.pairs.forEach(pair => {
+    pair.open_positions.forEach(pos => {
+      allPositions.push({ pos, pair });
+    });
+  });
+
+  const wrap = document.getElementById('detail-wrap');
+  wrap.classList.remove('hidden');
+
+  const positionsHTML = allPositions.length === 0
+    ? `<div style="display:flex;flex-direction:column;align-items:center;justify-content:center;padding:60px 20px;gap:12px;">
+        <div style="font-size:2rem;opacity:.2">◎</div>
+        <div style="font-family:var(--mono);font-size:.75rem;color:var(--muted);">No open positions</div>
+       </div>`
+    : `<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:14px;">` +
+      allPositions.map(({ pos, pair }, globalIdx) => {
+        const isLong = pos.direction === 1;
+        const color = isLong ? 'var(--win)' : 'var(--loss)';
+        const colorRgb = isLong ? '0,229,160' : '255,77,109';
+        const posIdx = pair.open_positions.indexOf(pos);
+
+
+
+        const entriesHTML = pos.entries.map((e) => `
+          <div style="display:grid;grid-template-columns:auto 1fr 1fr;gap:6px 12px;padding:8px 0;border-bottom:1px solid rgba(255,255,255,.04);align-items:center;">
+            <div style="font-family:var(--mono);font-size:.6rem;background:rgba(${colorRgb},.12);border:1px solid rgba(${colorRgb},.2);color:${color};border-radius:4px;padding:2px 6px;white-space:nowrap;">Lv ${e.level}</div>
+            <div>
+              <div style="font-family:var(--mono);font-size:.58rem;color:var(--muted);">${pair.symbol_a}</div>
+              <div style="font-family:var(--mono);font-size:.78rem;">${e.entry_price_a}</div>
+            </div>
+            <div>
+              <div style="font-family:var(--mono);font-size:.58rem;color:var(--muted);">size</div>
+              <div style="font-family:var(--mono);font-size:.78rem;">$${e.size_usd}</div>
+            </div>
+            <div></div>
+            <div>
+              <div style="font-family:var(--mono);font-size:.58rem;color:var(--muted);">${pair.symbol_b}</div>
+              <div style="font-family:var(--mono);font-size:.78rem;">${e.entry_price_b}</div>
+            </div>
+          </div>`).join('');
+
+        return `
+          <div style="background:var(--surface2);border:1px solid var(--border);border-radius:14px;padding:18px 20px;position:relative;overflow:hidden;">
+            <div style="position:absolute;top:0;left:0;right:0;height:2px;background:linear-gradient(90deg,transparent,rgba(${colorRgb},.4),transparent);"></div>
+            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;">
+              <div style="font-family:var(--sans);font-weight:800;font-size:.95rem;">
+                <span style="color:${isLong ? 'var(--win)' : 'var(--loss)'};">${isLong ? '▲' : '▼'} ${pair.symbol_a}</span>
+                <span style="color:var(--muted);font-weight:400;"> / </span>
+                <span style="color:${isLong ? 'var(--loss)' : 'var(--win)'};">${isLong ? '▼' : '▲'} ${pair.symbol_b}</span>
+              </div>
+              <div style="font-family:var(--mono);font-size:.6rem;background:rgba(${colorRgb},.08);border:1px solid rgba(${colorRgb},.2);color:${color};border-radius:20px;padding:3px 10px;">${pos.n_entries} entr${pos.n_entries>1?'ies':'y'}</div>
+            </div>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:14px;">
+              <div style="background:rgba(255,255,255,.03);border-radius:8px;padding:8px 10px;">
+                <div style="font-family:var(--mono);font-size:.55rem;color:var(--muted);text-transform:uppercase;letter-spacing:.08em;margin-bottom:3px;">Total Size</div>
+                <div style="font-family:var(--mono);font-size:.9rem;font-weight:700;">$${pos.total_size}
+                  <span style="font-size:.65rem;color:var(--muted);font-weight:400;">lv ${[...new Set(pos.levels)].join('/')}</span>
+                </div>
+              </div>
+              <div style="background:rgba(255,255,255,.03);border-radius:8px;padding:8px 10px;border:1px solid rgba(${colorRgb},.15);">
+                <div style="font-family:var(--mono);font-size:.55rem;color:var(--muted);text-transform:uppercase;letter-spacing:.08em;margin-bottom:3px;">Z-score</div>
+                <div style="font-family:var(--mono);font-size:.9rem;font-weight:700;color:${color};">
+                  ${pair.zscore?.z != null ? (pair.zscore.z > 0 ? '+' : '') + pair.zscore.z.toFixed(4) : '—'}
+                </div>
+              </div>
+            </div>
+            <div style="font-family:var(--mono);font-size:.6rem;color:var(--muted);text-transform:uppercase;letter-spacing:.08em;margin-bottom:6px;">Entry Details</div>
+            ${entriesHTML}
+            <div style="font-family:var(--mono);font-size:.6rem;color:var(--muted);margin-top:10px;">Opened: ${new Date(pos.first_entry_time).toLocaleString('ru-RU')}</div>
+          </div>`;
+      }).join('') + `</div>`;
+
+  wrap.innerHTML = `
+    <div class="detail-panel">
+      <div class="detail-header">
+        <div class="detail-title">All Open Positions</div>
+        <button class="close-btn" onclick="closeDetail(); document.getElementById('open-pos-card').classList.remove('active');">✕</button>
+      </div>
+      <div class="detail-body">${positionsHTML}</div>
+    </div>`;
+
+  wrap.scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
+/* ═══════════════════════════════════════════
+   GLOBAL PNL CHART
+═══════════════════════════════════════════ */
+let globalChart = null;
+
+function showGlobalPnlChart() {
+  const card = document.getElementById('wr-card');
+  const isActive = card.classList.contains('active');
+
+  // Close other panels
+  document.querySelectorAll('.pair-card').forEach(c => c.classList.remove('active'));
+  document.getElementById('open-pos-card')?.classList.remove('active');
+  document.getElementById('detail-wrap').classList.add('hidden');
+  document.getElementById('history-wrap').classList.add('hidden');
+  document.getElementById('btn-history').style.background = 'rgba(124,111,255,.08)';
+  document.getElementById('btn-history').style.borderColor = 'rgba(124,111,255,.2)';
+  if (currentChart) { currentChart.destroy(); currentChart = null; }
+
+  if (isActive) {
+    card.classList.remove('active');
+    document.getElementById('pnl-chart-wrap').classList.add('hidden');
+    if (globalChart) { globalChart.destroy(); globalChart = null; }
+    return;
+  }
+
+  card.classList.add('active');
+
+  // Build cumulative PnL series from allHistory sorted by exit_time asc
+  const trades = (MOCK.allHistory || []).slice().sort((a, b) =>
+    (a.exit_time || '') < (b.exit_time || '') ? -1 : 1
+  );
+
+  let cum = 0;
+  const labels = [];
+  const data = [];
+  const pointColors = [];
+  trades.forEach(t => {
+    cum += t.pnl || 0;
+    const d = new Date(t.exit_time);
+    labels.push(d.toLocaleDateString('ru-RU', { month: '2-digit', day: '2-digit' }) + ' ' + d.toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' }));
+    data.push(+cum.toFixed(2));
+    pointColors.push(t.pnl >= 0 ? 'rgba(0,229,160,0.7)' : 'rgba(255,77,109,0.7)');
+  });
+
+  const totalPnl = data.length ? data[data.length - 1] : 0;
+  const color = totalPnl >= 0 ? '#00e5a0' : '#ff4d6d';
+
+  // Win/loss stats
+  const wins = trades.filter(t => t.pnl > 0).length;
+  const wr = trades.length ? (wins / trades.length * 100).toFixed(1) : '0';
+  const maxVal = Math.max(...data, 0);
+  const minVal = Math.min(...data, 0);
+  const maxDD = (() => {
+    let peak = -Infinity, dd = 0;
+    data.forEach(v => { if (v > peak) peak = v; dd = Math.max(dd, peak - v); });
+    return dd;
+  })();
+
+  const wrap = document.getElementById('pnl-chart-wrap');
+  wrap.classList.remove('hidden');
+  wrap.innerHTML = `
+    <div class="detail-panel" style="margin-bottom:32px;">
+      <div class="detail-header">
+        <div class="detail-title">Global PnL Chart</div>
+        <button class="close-btn" onclick="closeGlobalPnlChart()">✕</button>
+      </div>
+      <div class="detail-body">
+        <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:24px;">
+          <div class="d-stat">
+            <div class="d-stat-label">Net PnL</div>
+            <div class="d-stat-val ${totalPnl >= 0 ? 'pnl-pos' : 'pnl-neg'}">${totalPnl >= 0 ? '+' : ''}$${totalPnl.toFixed(2)}</div>
+          </div>
+          <div class="d-stat">
+            <div class="d-stat-label">Win Rate</div>
+            <div class="d-stat-val">${wr}%</div>
+          </div>
+          <div class="d-stat">
+            <div class="d-stat-label">Max Drawdown</div>
+            <div class="d-stat-val pnl-neg">-$${maxDD.toFixed(2)}</div>
+          </div>
+          <div class="d-stat">
+            <div class="d-stat-label">Trades</div>
+            <div class="d-stat-val">${trades.length}</div>
+          </div>
+        </div>
+        <div class="chart-wrap" style="height:320px;">
+          <div class="chart-label">Cumulative PnL — All Pairs — $</div>
+          <canvas id="global-pnl-canvas"></canvas>
+        </div>
+      </div>
+    </div>`;
+
+  wrap.scrollIntoView({ behavior: 'smooth', block: 'start' });
+
+  const canvas = document.getElementById('global-pnl-canvas');
+  if (globalChart) { globalChart.destroy(); globalChart = null; }
+
+  globalChart = new Chart(canvas, {
+    type: 'line',
+    data: {
+      labels,
+      datasets: [{
+        data,
+        borderColor: color,
+        backgroundColor: (ctx) => {
+          const g = ctx.chart.ctx.createLinearGradient(0, 0, 0, 320);
+          g.addColorStop(0, color + '30');
+          g.addColorStop(1, color + '00');
+          return g;
+        },
+        borderWidth: 2,
+        pointRadius: 3,
+        pointHoverRadius: 5,
+        pointBackgroundColor: pointColors,
+        pointBorderWidth: 0,
+        fill: true,
+        tension: 0.3
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      animation: { duration: 700 },
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          backgroundColor: '#16161f',
+          borderColor: color + '40',
+          borderWidth: 1,
+          titleColor: '#6b6b85',
+          bodyColor: color,
+          bodyFont: { family: 'Space Mono', size: 12 },
+          callbacks: {
+            label: ctx => `  $${ctx.parsed.y.toFixed(2)}`
+          }
+        }
+      },
+      scales: {
+        x: {
+          ticks: { color: '#6b6b85', font: { family: 'Space Mono', size: 9 }, maxTicksLimit: 10 },
+          grid: { color: 'rgba(255,255,255,0.03)' }
+        },
+        y: {
+          ticks: { color: '#6b6b85', font: { family: 'Space Mono', size: 9 }, callback: v => '$' + v.toFixed(0) },
+          grid: { color: 'rgba(255,255,255,0.04)' },
+          border: { dash: [3, 3] }
+        }
+      }
+    }
+  });
+}
+
+function closeGlobalPnlChart() {
+  document.getElementById('pnl-chart-wrap').classList.add('hidden');
+  document.getElementById('wr-card')?.classList.remove('active');
+  if (globalChart) { globalChart.destroy(); globalChart = null; }
+}
+
+function closeDetail() {
+  document.getElementById('detail-wrap').classList.add('hidden');
+  document.querySelectorAll('.pair-card').forEach(c => c.classList.remove('active'));
+  document.getElementById('open-pos-card')?.classList.remove('active');
+  if (currentChart) { currentChart.destroy(); currentChart = null; }
+}
+
+/* ═══════════════════════════════════════════
+   CLOCK
+═══════════════════════════════════════════ */
+function updateClock() {
+  const now = new Date();
+  document.getElementById('clock').textContent = now.toUTCString().split(' ')[4] + ' UTC';
+}
+setInterval(updateClock, 1000);
+updateClock();
+
+/* ═══════════════════════════════════════════
+   INIT
+═══════════════════════════════════════════ */
+// Показываем пустое состояние до загрузки данных с API
+document.getElementById('pairs-grid').innerHTML = `
+  <div style="grid-column:1/-1;display:flex;align-items:center;justify-content:center;padding:60px 20px;gap:12px;flex-direction:column;">
+    <div style="font-size:2rem;opacity:.2">◎</div>
+    <div style="font-family:var(--mono);font-size:.75rem;color:var(--muted);">Подключение к боту...</div>
+  </div>`;
+renderGlobal();
+
+/* ═══════════════════════════════════════════
+   LIVE API
+═══════════════════════════════════════════ */
+const API_PORT_NUM = 51125; // ← меняй здесь если изменил порт в боте
+
+const API_URL = (() => {
+  const h = window.location.hostname;
+  if (!h || h === '' || window.location.protocol === 'file:') return null;
+  return `${window.location.protocol}//${h}:${API_PORT_NUM}`;
+})();
+
+const _urlToken = new URLSearchParams(window.location.search).get('token');
+if (_urlToken) localStorage.setItem('api_token', _urlToken);
+const API_TOKEN = _urlToken
+               || document.querySelector('meta[name="api-token"]')?.content
+               || localStorage.getItem('api_token')
+               || '';
+
+let liveInterval = null;
+
+async function apiFetch(path) {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 10000);
+  try {
+    const r = await fetch(API_URL + path, {
+      headers: API_TOKEN ? { 'X-Token': API_TOKEN } : {},
+      signal: controller.signal
+    });
+    if (!r.ok) throw new Error(`${r.status} ${r.statusText}`);
+    return r.json();
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+async function fetchLiveData() {
+  if (!API_URL) {
+    setStatus(false, 'no-url');
+    return;
+  }
+  try {
+    const pairs = await apiFetch('/api/pairs');
+
+    for (const p of pairs) {
+      try {
+        p.equity = await apiFetch('/api/pairs/' + p.key + '/equity');
+      } catch { p.equity = []; }
+      try {
+        p.trades = await apiFetch('/api/pairs/' + p.key + '/trades');
+      } catch { p.trades = []; }
+    }
+
+    // Обновляем live prices из zscore (API отдаёт текущие цены)
+    pairs.forEach(p => {
+      if (p.zscore?.price_a) LIVE_PRICES[p.symbol_a] = p.zscore.price_a;
+      if (p.zscore?.price_b) LIVE_PRICES[p.symbol_b] = p.zscore.price_b;
+    });
+
+    MOCK.pairs = pairs;
+
+    // Загружаем полную историю для вкладки History и глобального winrate
+    try {
+      MOCK.allHistory = await apiFetch('/api/history');
+    } catch { MOCK.allHistory = []; }
+
+    const activeCard = document.querySelector('.pair-card.active');
+    const activeKey  = activeCard?.id?.replace('card-', '');
+
+    renderGlobal();
+    renderPairs();
+
+    // Если открыта вкладка истории — обновляем её тоже
+    if (!document.getElementById('history-wrap').classList.contains('hidden')) {
+      showHistoryTab();
+    }
+
+    if (activeKey) {
+      document.getElementById('card-' + activeKey)?.classList.add('active');
+    }
+
+    setStatus(true);
+  } catch (e) {
+    console.warn('Live fetch failed:', e.message);
+    setStatus(false);
+  }
+}
+
+function setStatus(ok, reason) {
+  const badge = document.getElementById('status-badge');
+  if (reason === 'no-url') {
+    badge.textContent   = 'LOCAL FILE';
+    badge.style.background  = 'rgba(124,111,255,0.08)';
+    badge.style.borderColor = 'rgba(124,111,255,0.2)';
+    badge.style.color       = 'var(--accent3)';
+    return;
+  }
+  badge.textContent    = ok ? 'LIVE' : 'RECONNECTING...';
+  badge.style.background   = ok ? 'rgba(0,229,160,0.08)' : 'rgba(255,77,109,0.08)';
+  badge.style.borderColor  = ok ? 'rgba(0,229,160,0.2)'  : 'rgba(255,77,109,0.2)';
+  badge.style.color        = ok ? 'var(--accent)'        : 'var(--loss)';
+}
+
+// Автозапуск
+fetchLiveData();
+liveInterval = setInterval(fetchLiveData, 15000);
+
+/* ═══════════════════════════════════════════
+   PAIR MANAGEMENT
+═══════════════════════════════════════════ */
+
+function openAddModal() {
+  const m = document.getElementById('add-modal');
+  m.style.display = 'flex';
+  document.getElementById('input-sym-a').value = '';
+  document.getElementById('input-sym-b').value = '';
+  const err = document.getElementById('add-error');
+  err.style.display = 'none';
+  setTimeout(() => document.getElementById('input-sym-a').focus(), 50);
+}
+
+function closeAddModal() {
+  document.getElementById('add-modal').style.display = 'none';
+}
+
+// Close on backdrop click
+document.getElementById('add-modal').addEventListener('click', function(e) {
+  if (e.target === this) closeAddModal();
+});
+
+async function submitAddPair() {
+  const symA = document.getElementById('input-sym-a').value.trim().toUpperCase();
+  const symB = document.getElementById('input-sym-b').value.trim().toUpperCase();
+  const errEl = document.getElementById('add-error');
+
+  if (!symA || !symB) {
+    errEl.textContent = 'Please enter both symbols';
+    errEl.style.display = 'block'; return;
+  }
+  if (symA === symB) {
+    errEl.textContent = 'Symbol A and B must be different';
+    errEl.style.display = 'block'; return;
+  }
+
+  const btn = document.getElementById('btn-add-submit');
+  const origText = btn.textContent;
+  btn.textContent = 'Adding...'; btn.disabled = true;
+
+  try {
+    if (!API_URL) {
+      // Mock mode: just add locally
+      const key = `${symA}_${symB}`;
+      MOCK.pairs.push({
+        key, symbol_a: symA, symbol_b: symB, paused: false,
+        zscore: {}, open_trades: 0, total_trades: 0,
+        win_rate: 0, total_pnl: 0, total_commission: 0,
+        open_positions: [], equity: []
+      });
+      renderPairs();
+      closeAddModal();
+      return;
+    }
+    const res = await fetch(API_URL + '/api/pairs/add', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', ...(API_TOKEN ? {'X-Token': API_TOKEN} : {}) },
+      body: JSON.stringify({ symbol_a: symA, symbol_b: symB })
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.detail || data.error || res.statusText);
+    closeAddModal();
+    await fetchLiveData();
+  } catch(e) {
+    errEl.textContent = e.message;
+    errEl.style.display = 'block';
+  } finally {
+    btn.textContent = origText; btn.disabled = false;
+  }
+}
+
+async function togglePause(key, isPaused) {
+  const action = isPaused ? 'resume' : 'pause';
+  try {
+    if (!API_URL) {
+      const pair = MOCK.pairs.find(p => p.key === key);
+      if (pair) { pair.paused = !isPaused; renderPairs(); }
+      return;
+    }
+    const res = await fetch(`${API_URL}/api/pairs/${key}/${action}`, {
+      method: 'POST',
+      headers: API_TOKEN ? {'X-Token': API_TOKEN} : {}
+    });
+    if (!res.ok) throw new Error((await res.json()).detail || res.statusText);
+    await fetchLiveData();
+  } catch(e) {
+    showToast(e.message, true);
+  }
+}
+
+async function confirmDelete(key, openTrades) {
+  if (openTrades > 0) {
+    showToast(`Cannot delete — ${openTrades} open position(s). Close them first.`, true);
+    return;
+  }
+  if (!confirm(`Remove pair ${key} from the bot?\nHistory and state will be preserved.`)) return;
+  try {
+    if (!API_URL) {
+      MOCK.pairs = MOCK.pairs.filter(p => p.key !== key);
+      renderPairs();
+      renderGlobal();
+      return;
+    }
+    const res = await fetch(`${API_URL}/api/pairs/${key}`, {
+      method: 'DELETE',
+      headers: API_TOKEN ? {'X-Token': API_TOKEN} : {}
+    });
+    if (!res.ok) throw new Error((await res.json()).detail || res.statusText);
+    closeDetail();
+    await fetchLiveData();
+    showToast(`Pair ${key} removed`);
+  } catch(e) {
+    showToast(e.message, true);
+  }
+}
+
+// Simple toast notification
+function showToast(msg, isErr = false) {
+  let t = document.getElementById('toast-msg');
+  if (!t) {
+    t = document.createElement('div');
+    t.id = 'toast-msg';
+    t.style.cssText = `
+      position:fixed;bottom:24px;left:50%;transform:translateX(-50%);
+      font-family:var(--mono);font-size:.75rem;padding:10px 20px;
+      border-radius:8px;z-index:9999;transition:opacity .3s;pointer-events:none;
+      max-width:400px;text-align:center;
+    `;
+    document.body.appendChild(t);
+  }
+  t.textContent = msg;
+  t.style.background = isErr ? 'rgba(255,77,109,.15)' : 'rgba(0,229,160,.12)';
+  t.style.border = isErr ? '1px solid rgba(255,77,109,.3)' : '1px solid rgba(0,229,160,.3)';
+  t.style.color = isErr ? 'var(--loss)' : 'var(--accent)';
+  t.style.opacity = '1';
+  clearTimeout(t._timer);
+  t._timer = setTimeout(() => { t.style.opacity = '0'; }, 3000);
+}
+
+/* ═══════════════════════════════════════════
+   TRADE SIZE MANAGEMENT
+═══════════════════════════════════════════ */
+let _sizeEditKey = null;
+
+function openSizeEdit(key, currentSize) {
+  const pair = MOCK.pairs.find(p => p.key === key);
+  if (!pair?.paused) { showToast('Сначала поставьте пару на паузу ⏸', true); return; }
+  _sizeEditKey = key;
+  document.getElementById('size-modal-key').textContent = key.replace('_', ' / ');
+  document.getElementById('input-trade-size').value = currentSize;
+  document.getElementById('size-error').style.display = 'none';
+  const presets = [25, 50, 100, 200, 500];
+  document.getElementById('size-presets').innerHTML = presets.map(v => `
+    <button onclick="document.getElementById('input-trade-size').value=${v}" style="
+      font-family:var(--mono);font-size:.65rem;padding:5px 10px;border-radius:6px;cursor:pointer;
+      background:${v === Math.round(currentSize) ? 'rgba(124,111,255,.2)' : 'rgba(255,255,255,.05)'};
+      border:1px solid ${v === Math.round(currentSize) ? 'rgba(124,111,255,.4)' : 'var(--border)'};
+      color:${v === Math.round(currentSize) ? 'var(--accent3)' : 'var(--muted)'};
+    ">$${v}</button>`).join('');
+  document.getElementById('size-modal').style.display = 'flex';
+  setTimeout(() => { const i = document.getElementById('input-trade-size'); i.focus(); i.select(); }, 50);
+}
+
+function closeSizeModal() {
+  document.getElementById('size-modal').style.display = 'none';
+  _sizeEditKey = null;
+}
+
+document.getElementById('size-modal').addEventListener('click', function(e) {
+  if (e.target === this) closeSizeModal();
+});
+
+async function submitTradeSize() {
+  const key = _sizeEditKey;
+  const val = parseFloat(document.getElementById('input-trade-size').value);
+  const errEl = document.getElementById('size-error');
+  if (!key) return;
+  if (isNaN(val) || val <= 0) { errEl.textContent = 'Введите корректное значение > 0'; errEl.style.display = 'block'; return; }
+  try {
+    if (!API_URL) {
+      const pair = MOCK.pairs.find(p => p.key === key);
+      if (pair) pair.trade_size = val;
+      renderPairs(); closeSizeModal(); showToast(`${key}: trade_size = $${val}`); return;
+    }
+    const res = await fetch(`${API_URL}/api/pairs/${key}/trade_size`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json', ...(API_TOKEN ? {'X-Token': API_TOKEN} : {}) },
+      body: JSON.stringify({ trade_size: val })
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.detail || data.error || res.statusText);
+    const pair = MOCK.pairs.find(p => p.key === key);
+    if (pair) pair.trade_size = val;
+    renderPairs(); closeSizeModal(); showToast(`${key}: trade_size = $${val}`);
+  } catch(e) { errEl.textContent = e.message; errEl.style.display = 'block'; }
+}
+
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape' && _sizeEditKey) closeSizeModal();
+  if (e.key === 'Enter' && document.getElementById('size-modal').style.display === 'flex') submitTradeSize();
+});
+
+/* ═══════════════════════════════════════════
+   WINDOW MANAGEMENT
+═══════════════════════════════════════════ */
+const WIN_PRESETS = [300, 400, 500];
+let _winEditKey = null;
+
+function openWinEdit(key, currentWin) {
+  const pair = MOCK.pairs.find(p => p.key === key);
+  if (!pair?.paused) { showToast('Сначала поставьте пару на паузу ⏸', true); return; }
+  _winEditKey = key;
+  document.getElementById('win-modal-key').textContent = key.replace('_', ' / ');
+  document.getElementById('input-window').value = currentWin;
+  document.getElementById('win-error').style.display = 'none';
+  document.getElementById('win-presets').innerHTML = WIN_PRESETS.map(v => `
+    <button onclick="document.getElementById('input-window').value=${v}" style="
+      font-family:var(--mono);font-size:.65rem;padding:5px 10px;border-radius:6px;cursor:pointer;
+      background:${v === Math.round(currentWin) ? 'rgba(0,229,160,.2)' : 'rgba(255,255,255,.05)'};
+      border:1px solid ${v === Math.round(currentWin) ? 'rgba(0,229,160,.4)' : 'var(--border)'};
+      color:${v === Math.round(currentWin) ? 'var(--accent)' : 'var(--muted)'};
+    ">${v}</button>`).join('');
+  document.getElementById('win-modal').style.display = 'flex';
+  setTimeout(() => { const i = document.getElementById('input-window'); i.focus(); i.select(); }, 50);
+}
+
+function closeWinModal() {
+  document.getElementById('win-modal').style.display = 'none';
+  _winEditKey = null;
+}
+
+document.getElementById('win-modal').addEventListener('click', function(e) {
+  if (e.target === this) closeWinModal();
+});
+
+async function submitWindow() {
+  const key = _winEditKey;
+  const win = parseInt(document.getElementById('input-window').value);
+  const errEl = document.getElementById('win-error');
+  if (!key) return;
+  if (isNaN(win) || win < 10) { errEl.textContent = 'Window должен быть ≥ 10'; errEl.style.display = 'block'; return; }
+  try {
+    if (!API_URL) {
+      const pair = MOCK.pairs.find(p => p.key === key);
+      if (pair) pair.window = win;
+      renderPairs(); closeWinModal(); showToast(`${key}: window=${win}`); return;
+    }
+    const res = await fetch(`${API_URL}/api/pairs/${key}/tf_window`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json', ...(API_TOKEN ? {'X-Token': API_TOKEN} : {}) },
+      body: JSON.stringify({ timeframe: MOCK.status?.timeframe || '5m', window: win })
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.detail || data.error || res.statusText);
+    const pair = MOCK.pairs.find(p => p.key === key);
+    if (pair) pair.window = win;
+    renderPairs(); closeWinModal(); showToast(`${key}: window=${win}`);
+  } catch(e) { errEl.textContent = e.message; errEl.style.display = 'block'; }
+}
+
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape' && _winEditKey) closeWinModal();
+  if (e.key === 'Enter' && document.getElementById('win-modal').style.display === 'flex') submitWindow();
+});
+
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape') closeAddModal();
+  if (e.key === 'Enter' && document.getElementById('add-modal').style.display === 'flex') submitAddPair();
+});
+
+/* ═══════════════════════════════════════════
+   HISTORY TAB
+═══════════════════════════════════════════ */
+
+function showHistoryTab() {
+  closeGlobalPnlChart();
+  document.getElementById('detail-wrap').classList.add('hidden');
+  document.getElementById('history-wrap').classList.remove('hidden');
+  document.querySelectorAll('.pair-card').forEach(c => c.classList.remove('active'));
+  document.getElementById('btn-history').style.background = 'rgba(124,111,255,.2)';
+  document.getElementById('btn-history').style.borderColor = 'rgba(124,111,255,.5)';
+  // Заполняем фильтр пар
+  const sel = document.getElementById('hist-filter-pair');
+  const cur = sel.value;
+  sel.innerHTML = '<option value="">All Pairs</option>';
+  const keys = [...new Set(MOCK.allHistory.map(t => t.pair_key))].sort();
+  keys.forEach(k => {
+    const o = document.createElement('option');
+    o.value = k; o.textContent = k.replace('_', ' / ');
+    if (k === cur) o.selected = true;
+    sel.appendChild(o);
+  });
+  renderHistory();
+  document.getElementById('history-wrap').scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
+function closeHistoryTab() {
+  document.getElementById('history-wrap').classList.add('hidden');
+  document.getElementById('btn-history').style.background = 'rgba(124,111,255,.08)';
+  document.getElementById('btn-history').style.borderColor = 'rgba(124,111,255,.2)';
+}
+
+function renderHistory() {
+  const filterPair = document.getElementById('hist-filter-pair').value;
+
+  let trades = MOCK.allHistory;
+  if (filterPair) trades = trades.filter(t => t.pair_key === filterPair);
+
+  // Stats line
+  const wins = trades.filter(t => t.pnl > 0).length;
+  const pnl  = trades.reduce((a, t) => a + (t.pnl || 0), 0);
+  const comm = trades.reduce((a, t) => a + (t.commission || 0), 0);
+  const wr   = trades.length > 0 ? (wins / trades.length * 100).toFixed(1) : '—';
+  document.getElementById('hist-stats-line').innerHTML =
+    `${trades.length} trades &nbsp;|&nbsp; WR: <b style="color:var(--accent)">${wr}%</b> &nbsp;|&nbsp; PnL: <b style="color:${pnl>=0?'var(--win)':'var(--loss)'}">${pnl>=0?'+':''}$${pnl.toFixed(2)}</b> &nbsp;|&nbsp; Comm: <b style="color:var(--loss)">-$${Math.abs(comm).toFixed(2)}</b>`;
+
+  if (trades.length === 0) {
+    document.getElementById('history-table-wrap').innerHTML = `
+      <div style="display:flex;flex-direction:column;align-items:center;padding:60px 20px;gap:12px;">
+        <div style="font-size:2rem;opacity:.2">◎</div>
+        <div style="font-family:var(--mono);font-size:.75rem;color:var(--muted);">No trades found</div>
+      </div>`;
+    return;
+  }
+
+  const rows = trades.map((t, idx) => {
+    const pnlClass = t.pnl >= 0 ? 'pnl-pos' : 'pnl-neg';
+    const exitDate = t.exit_time ? new Date(t.exit_time) : null;
+    const dateStr  = exitDate ? exitDate.toLocaleDateString('ru-RU') : '—';
+    const timeStr  = exitDate ? exitDate.toLocaleTimeString('ru-RU') : '—';
+    const pairDisp = (t.pair_key || `${t.symbol_a}_${t.symbol_b}`).replace('_', ' / ');
+    return `<tr>
+      <td style="color:var(--accent3);font-size:.65rem;">${pairDisp}</td>
+      <td>${dateStr}</td>
+      <td>${timeStr}</td>
+      <td class="${pnlClass}">${t.pnl>=0?'+':''}$${(t.pnl||0).toFixed(2)}</td>
+      <td style="color:var(--muted)">-$${Math.abs(t.commission||0).toFixed(2)}</td>
+      <td>
+        <button onclick="deleteHistoryTrade('${t.pair_key}', ${t.index})" title="Delete trade" style="
+          background:rgba(255,77,109,.08);border:1px solid rgba(255,77,109,.2);
+          color:var(--loss);width:22px;height:22px;border-radius:5px;cursor:pointer;font-size:.65rem;
+          display:inline-flex;align-items:center;justify-content:center;
+        ">✕</button>
+      </td>
+    </tr>`;
+  }).join('');
+
+  document.getElementById('history-table-wrap').innerHTML = `
+    <div style="overflow-x:auto;border-radius:10px;border:1px solid var(--border);">
+      <table class="trades-table">
+        <thead>
+          <tr>
+            <th>Pair</th><th>Date</th><th>Time</th>
+            <th>PnL</th><th>Comm</th><th></th>
+          </tr>
+        </thead>
+        <tbody>${rows}</tbody>
+      </table>
+    </div>`;
+}
+
+async function deleteHistoryTrade(pairKey, index) {
+  if (!confirm(`Delete this trade from history?\n${pairKey} index ${index}`)) return;
+  try {
+    if (!API_URL) {
+      // Mock: remove locally
+      const i = MOCK.allHistory.findIndex(t => t.pair_key === pairKey && t.index === index);
+      if (i !== -1) MOCK.allHistory.splice(i, 1);
+      // Re-index
+      let idx = 0;
+      MOCK.allHistory.filter(t => t.pair_key === pairKey).forEach(t => { t.index = idx++; });
+      renderHistory();
+      renderGlobal();
+      showToast('Trade deleted');
+      return;
+    }
+    const res = await fetch(`${API_URL}/api/history/${pairKey}/${index}`, {
+      method: 'DELETE',
+      headers: API_TOKEN ? {'X-Token': API_TOKEN} : {}
+    });
+    if (!res.ok) throw new Error((await res.json()).detail || res.statusText);
+    await fetchLiveData();
+    showToast('Trade deleted');
+  } catch(e) {
+    showToast(e.message, true);
+  }
+}
+
+</script>
+</body>
+</html>

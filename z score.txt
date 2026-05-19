@@ -1,0 +1,88 @@
+mkdir ~/trader
+cd ~/trader
+sudo apt update
+sudo apt install python3.10 python3.10-venv python3.10-distutils
+python3.10 -m venv venv
+source venv/bin/activate
+pip install --upgrade pip setuptools wheel
+pip install numpy==1.25.2 pandas==2.0.3
+pip install python-binance requests python-dotenv fastapi uvicorn websocket-client
+apt update
+apt install ufw -y
+ufw allow 80
+ufw allow 6530
+ufw enable
+mkdir -p ~/trader/logs ~/trader/backups
+apt install nano
+nano /etc/systemd/system/trader.service
+```
+Вставь в открывшийся редактор:
+```
+[Unit]
+Description=Pairs Trading Bot
+After=network.target
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/root/trader
+Environment=PATH=/root/trader/venv/bin:/usr/local/bin:/usr/bin
+ExecStart=/root/trader/venv/bin/python3.10 trader_binance.py
+Restart=always
+RestartSec=10
+StandardOutput=append:/root/trader/logs/trader.log
+StandardError=append:/root/trader/logs/trader_error.log
+
+[Install]
+WantedBy=multi-user.target
+
+
+# 3. Сервис дашборда, созать новую папку и отдельно поместить туда дэшборд
+mkdir -p /root/www
+nano /etc/systemd/system/dashboard.service
+```
+Вставь:
+```
+[Unit]
+Description=Trader Dashboard
+After=network.target
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/root/www
+ExecStart=/usr/bin/python3 -m http.server 80
+Restart=always
+RestartSec=5
+StandardOutput=append:/root/trader/logs/dashboard.log
+StandardError=append:/root/trader/logs/dashboard_error.log
+
+[Install]
+WantedBy=multi-user.target
+
+
+
+systemctl daemon-reload
+systemctl enable trader dashboard
+systemctl start trader dashboard
+
+apt install cron -y
+crontab -e
+```
+Добавь в конец файла:
+```
+0 * * * * cp /root/trader/trader_state.json /root/trader/backups/trader_state_$(date +\%Y\%m\%d_\%H\%M\%S).json 2>/dev/null; find /root/trader/backups -mtime +1 -delete
+0 * * * * cp /root/trader/trader_history.json /root/trader/backups/trader_history_$(date +\%Y\%m\%d_\%H\%M\%S).json 2>/dev/null; find /root/trader/backups -mtime +1 -delete
+# Проверить что всё работает
+systemctl status trader
+systemctl status dashboard
+
+systemctl stop trader dashboard
+
+
+
+http://ВАШ_VPS_IP/dashboard.html
+
+
+
+http://ВАШ_VPS_IP/dashboard.html?token=ТОКЕН_АПИ
